@@ -14,7 +14,9 @@ const Table = React.createClass({
             data: this.props.initialData,
             sortby: null,
             descending: false,
-            edit: null
+            edit: null,
+            search: false,
+            descending:false
         };
     },
 
@@ -29,6 +31,7 @@ const Table = React.createClass({
         });
         this.setState({
             data: data,
+            sortby:column,
         });
     },
 
@@ -50,7 +53,135 @@ const Table = React.createClass({
         });
     },
 
+
     render: function() {
+        return (
+            React.DOM.div(null,
+                this._renderToolbar(),
+                this._renderTable()
+            )
+        );
+    },
+
+    _renderToolbar: function() {
+        return  React.DOM.div({className: 'toolbar'},
+            React.DOM.button({
+                onClick: this._toggleSearch,
+            }, 'Search'),
+            React.DOM.a({
+                onClick: this._download.bind(this, 'json'),
+                href: 'data.json',
+            }, 'Export JSON'),
+            React.DOM.a({
+                onClick: this._download.bind(this, 'csv'),
+                href: 'data.csv',
+            }, 'Export CSV')
+        );
+    },
+
+    _preSearchData: null,
+
+    _toggleSearch: function() {
+        if (this.state.search) {
+            this.setState({
+                data: this._preSearchData,
+                search: false,
+            });
+            this._preSearchData = null;
+        } else {
+            this._preSearchData = this.state.data;
+            this.setState({
+                search: true,
+            });
+        }
+    },
+
+    _log: [],
+
+    _logSetState: function(newState) {
+        // remember the old state in a clone
+        this._log.push(JSON.parse(JSON.stringify(
+            this._log.length === 0 ? this.state : newState
+        )));
+        this.setState(newState);
+    },
+
+    _replay: function() {
+        if (this._log.length === 0) {
+            console.warn('No state to replay yet');
+            return;
+        }
+        let number = -1;
+        let interval = setInterval(function() {
+            number++;
+            if (number === this._log.length - 1) { // the end
+                clearInterval(interval);
+            }
+            this.setState(this._log[number]);
+        }.bind(this), 1000);
+    },
+
+    componentDidMount: function() {
+        document.onkeydown = function(e) {
+            if (e.altKey && e.shiftKey && e.keyCode === 82) { // ALT+SHIFT+R(eplay)
+                this._replay();
+            }
+        }.bind(this);
+    },
+
+    _download: function(format, ev) {
+        var contents = format === 'json'
+            ? JSON.stringify(this.state.data)
+            : this.state.data.reduce(function(result, row) {
+                return result
+                    + row.reduce(function(rowresult, cell, number) {
+                        return rowresult
+                            + '"'
+                            + cell.replace(/"/g, '""')
+                            + '"'
+                            + (number < row.length - 1 ? ',' : '');
+                    }, '')
+                    + "\n";
+            }, '');
+
+        var URL = window.URL || window.webkitURL;
+        var blob = new Blob([contents], {type: 'text/' + format});
+        ev.target.href = URL.createObjectURL(blob);
+        ev.target.download = 'data.' + format;
+    },
+
+    _search: function(e) {
+        var needle = e.target.value.toLowerCase();
+        if (!needle) {
+            this.setState({data: this._preSearchData});
+            return;
+        }
+        var idx = e.target.dataset.idx;
+        var searchdata = this._preSearchData.filter(function(row) {
+            return row[idx].toString().toLowerCase().indexOf(needle) > -1;
+        });
+        this.setState({data: searchdata});
+    },
+
+    renderSearch: function() {
+        if (!this.state.search) {
+            return null;
+        }
+        return (
+            React.DOM.tr({onChange: this._search},
+                this.props.headers.map(function(_ignore, number) {
+                    return React.DOM.td({key: number},
+                        React.DOM.input({
+                            type: 'text',
+                            'data-idx': number,
+                        })
+                    );
+                })
+            )
+        );
+    },
+
+    _renderTable: function() {
         return (
             React.DOM.table(null,
                 React.DOM.thead({onClick: this.sorting},
@@ -64,6 +195,7 @@ const Table = React.createClass({
                     )
                 ),
                 React.DOM.tbody({onDoubleClick: this.edit},
+                    this.renderSearch(),
                     this.state.data.map(function(row, rowidx) {
                         return (
                             React.DOM.tr({key: rowidx},
