@@ -39,6 +39,17 @@ const Table = React.createClass({
         }})
     },
 
+    save: function(e){
+        e.preventDefault();
+        let input = e.target.firstChild;
+        let Data = this.state.data.slice;
+        data[this.state.edit.row][this.state.edit.cell] = input.value;
+        this.setState({
+            edit: null,
+            data: data,
+        });
+    },
+
     render: function() {
         return (
             React.DOM.table(null,
@@ -53,15 +64,29 @@ const Table = React.createClass({
                     )
                 ),
                 React.DOM.tbody({onDoubleClick: this.edit},
-                    this.state.data.map(function(row, idx) {
+                    this.state.data.map(function(row, rowidx) {
                         return (
-                            React.DOM.tr({key: idx},
-                                row.map(function(cell, idx) {
-                                    return React.DOM.td({key: idx}, cell);
-                                })
+                            React.DOM.tr({key: rowidx},
+                                row.map(function(cell, number) {
+                                    let content = cell;
+                                    let edit = this.state.edit;
+                                    if (edit && edit.row === rowidx && edit.cell === number) {
+                                        content = React.DOM.form({onSubmit: this.save},
+                                            React.DOM.input({
+                                                type: 'text',
+                                                defaultValue: cell,
+                                            })
+                                        );
+                                    }
+
+                                    return React.DOM.td({
+                                        key: number,
+                                        'data-row': rowidx,
+                                    }, content);
+                                }, this)
                             )
                         );
-                    })
+                    }, this)
                 )
             )
         );
